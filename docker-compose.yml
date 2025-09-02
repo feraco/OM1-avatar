@@ -1,10 +1,10 @@
 version: '3.8'
 
 services:
-  om1-avatar:
+  om1_avatar:
     build:
       context: .
       dockerfile: Dockerfile
-    image: openmindagi/om1-avatar:latest
+    image: openmindagi/om1_avatar:latest
     ports:
       - "4173:4173"
