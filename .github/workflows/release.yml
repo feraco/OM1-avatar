@@ -2,6 +2,8 @@ name: OM1 Avatar release
 on:
   push:
     branches: main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
