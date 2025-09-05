@@ -15,10 +15,19 @@ To run the application in production mode, use Docker Compose:
 docker-compose up -d
 ```
 
+Install `unclutter` on your system to hide the mouse cursor after a period of inactivity:
+
+```bash
+sudo apt install unclutter
+```
+
 Add the script to `/usr/local/bin/start-kiosk.sh` and make it executable:
 
 ```bash
 #!/bin/bash
+
+unclutter -display :0 -idle 0.1 -root &
+
 HOST=localhost
 PORT=4173
 
