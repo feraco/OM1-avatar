@@ -6,5 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: openmindagi/om1_avatar:latest
+    container_name: om1_avatar
+    network_mode: host
     ports:
       - "4173:4173"
