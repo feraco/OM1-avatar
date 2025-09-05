@@ -7,6 +7,12 @@ services:
       dockerfile: Dockerfile
     image: openmindagi/om1_avatar:latest
     container_name: om1_avatar
+    restart: unless-stopped
     network_mode: host
     ports:
       - "4173:4173"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
