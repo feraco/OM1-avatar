@@ -105,16 +105,28 @@ Wants=pulseaudio.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/bash -c 'sleep 5 && pactl set-default-sink alsa_output.usb-Solid_State_System_Co._Ltd._USB_PnP_Audio_Device_000000000000-00.analog-stereo && pactl set-default-source alsa_input.usb-046d_C270_HD_WEBCAM_2D2A4B40-02.mono-fallback'
+ExecStart=/bin/bash -c '\
+  sleep 5 && \
+  pactl unload-module module-echo-cancel || true && \
+  pactl load-module module-echo-cancel \
+    aec_method=webrtc \
+    source_master=alsa_input.usb-046d_Brio_101_2520APKJ1778-02.mono-fallback \
+    sink_master=alsa_output.usb-Solid_State_System_Co._Ltd._USB_PnP_Audio_Device_000000000000-00.analog-stereo \
+    source_name=default_mic_aec \
+    sink_name=default_output_aec \
+    source_properties="device.description=Microphone_with_AEC" \
+    sink_properties="device.description=Speaker_with_AEC" && \
+  pactl set-default-source default_mic_aec && \
+  pactl set-default-sink default_output_aec'
 
 [Install]
 WantedBy=default.target
 ```
-Use 
+Use
 ```bash
 pactl list short
 ```
-and replace ```alsa_output.usb-Solid_State_System_Co._Ltd._USB_PnP_Audio_Device_000000000000-00.analog-stereo``` with your speaker source and ```alsa_input.usb-046d_C270_HD_WEBCAM_2D2A4B40-02.mono-fallback``` with mic source 
+and replace ```alsa_output.usb-Solid_State_System_Co._Ltd._USB_PnP_Audio_Device_000000000000-00.analog-stereo``` with your speaker source and ```alsa_input.usb-046d_Brio_101_2520APKJ1778-02.mono-fallback``` with mic source
 
 Enable and start the audio defaults service:
 
