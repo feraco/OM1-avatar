@@ -136,6 +136,37 @@ systemctl --user enable audio-defaults.service
 systemctl --user start audio-defaults.service
 ```
 
+Due to the audio configuration, you need to restart the OM1 container to apply the changes when the system is started:
+
+```bash
+docker-compose restart om1
+```
+
+You can add this service to `/etc/systemd/system/om1-container.service` to automatically restart the OM1 container on boot:
+
+```bash
+[Unit]
+Description=Restart OM1
+After=docker.service multi-user.target
+Wants=docker.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'sleep 10 && docker restart om1'
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the om1-container service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable om1-container.service
+sudo systemctl start om1-container.service
+```
+
 ## License
 
 This project is licensed under the terms specified in the LICENSE file.
