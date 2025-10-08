@@ -152,7 +152,7 @@ Wants=docker.service
 
 [Service]
 Type=simple
-ExecStart=/bin/bash -c 'sleep 10 && docker restart om1'
+ExecStart=/bin/bash -c 'sleep 15 && docker restart om1'
 RemainAfterExit=no
 
 [Install]
