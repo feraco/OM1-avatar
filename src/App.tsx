@@ -9,7 +9,8 @@ import HappyAnimation from './animations/face/Happy.riv';
 import SadAnimation from './animations/face/Sad.riv';
 import loadingAnimation from './animations/openmind-logo.riv';
 
-const wsUrl = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:8123';
+const om1WsUrl = import.meta.env.VITE_OM1_WEBSOCKET_URL || 'ws://localhost:8123';
+const apiWsUrl = import.meta.env.VITE_API_WEBSOCKET_URL || 'ws://localhost:6123';
 
 function Loading() {
   return (
@@ -72,8 +73,14 @@ type AnimationState = 'Confused' | 'Curious' | 'Excited' | 'Happy' | 'Sad' | 'Th
 export function App() {
   const [loaded, setLoaded] = useState(false);
   const [currentAnimation, setCurrentAnimation] = useState<AnimationState>('Happy');
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [allModes, setAllModes] = useState<string[]>([]);
+  const [currentMode, setCurrentMode] = useState<string>('');
+  const [showModeSelector, setShowModeSelector] = useState(false);
+  const om1WsRef = useRef<WebSocket | null>(null);
+  const apiWsRef = useRef<WebSocket | null>(null);
+  const om1ReconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const apiReconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const apiIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const parseMessage = (message: string): AnimationState => {
     if ( message === 'Confused' || message === 'Curious' || message === 'Excited' || message === 'Happy' || message === 'Sad' || message === 'Think') {
@@ -82,60 +89,191 @@ export function App() {
     return 'Happy';
   };
 
+  const sendGetMode = () => {
+    if (apiWsRef.current && apiWsRef.current.readyState === WebSocket.OPEN) {
+      const requestId = crypto.randomUUID();
+      const message = JSON.stringify({ action: "get_mode", request_id: requestId });
+      apiWsRef.current.send(message);
+      console.log('Sent get_mode to API WebSocket:', message);
+    }
+  };
+
+  const sendModeSwitch = (mode: string) => {
+    if (apiWsRef.current && apiWsRef.current.readyState === WebSocket.OPEN) {
+      const requestId = crypto.randomUUID();
+      const message = JSON.stringify({
+        action: "swicth_mode",
+        request_id: requestId,
+        parameters: mode
+      });
+      apiWsRef.current.send(message);
+      console.log('Sent mode switch to API WebSocket:', message);
+      setShowModeSelector(false);
+    }
+  };
+
   useEffect(() => {
-    const connectWebSocket = () => {
+    const connectOm1WebSocket = () => {
       try {
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
+        const ws = new WebSocket(om1WsUrl);
+        om1WsRef.current = ws;
 
         ws.onopen = () => {
-          console.log(`WebSocket connected to ${wsUrl}`);
+          console.log(`OM1 WebSocket connected to ${om1WsUrl}`);
           setLoaded(true);
           setCurrentAnimation('Happy');
         };
 
         ws.onmessage = (event) => {
-          console.log('Received message from WebSocket:', event.data);
+          console.log('Received message from OM1 WebSocket:', event.data);
           const newState = parseMessage(event.data);
           console.log('Setting animation state to:', newState);
           setCurrentAnimation(newState);
         };
 
         ws.onclose = (event) => {
-          console.log('WebSocket connection closed:', event.code, event.reason);
+          console.log('OM1 WebSocket connection closed:', event.code, event.reason);
           setLoaded(false);
           setCurrentAnimation('Happy');
 
-          reconnectTimeoutRef.current = setTimeout(() => {
-            console.log('Attempting to reconnect...');
-            connectWebSocket();
+          om1ReconnectTimeoutRef.current = setTimeout(() => {
+            console.log('Attempting to reconnect OM1 WebSocket...');
+            connectOm1WebSocket();
           }, 500);
         };
 
         ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          console.error('OM1 WebSocket error:', error);
         };
 
       } catch (error) {
-        console.error('Failed to create WebSocket connection:', error);
+        console.error('Failed to create OM1 WebSocket connection:', error);
 
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connectWebSocket();
+        om1ReconnectTimeoutRef.current = setTimeout(() => {
+          connectOm1WebSocket();
         }, 2000);
       }
     };
 
-    connectWebSocket();
+    const connectApiWebSocket = () => {
+      try {
+        const apiWs = new WebSocket(apiWsUrl);
+        apiWsRef.current = apiWs;
+
+        apiWs.onopen = () => {
+          console.log(`API WebSocket connected to ${apiWsUrl}`);
+
+          const requestId = crypto.randomUUID();
+          const initMessage = JSON.stringify({ action: "get_mode", request_id: requestId });
+          apiWs.send(initMessage);
+          console.log('Sent initial get_mode to API WebSocket:', initMessage);
+
+          apiIntervalRef.current = setInterval(() => {
+            if (apiWs.readyState === WebSocket.OPEN) {
+              const requestId = crypto.randomUUID();
+              const message = JSON.stringify({ action: "get_mode", request_id: requestId });
+              apiWs.send(message);
+              console.log('Sent to API WebSocket:', message);
+            }
+          }, currentMode ? 30000 : 5000);
+        };
+
+        apiWs.onmessage = (event) => {
+          console.log('Received message from API WebSocket:', event.data);
+
+          try {
+            const response = JSON.parse(event.data);
+
+            if (response.code === 0 && response.message && response.message.includes("Successfully switched to mode")) {
+              console.log('Mode switch successful, requesting updated mode info');
+              sendGetMode();
+              return;
+            }
+
+            if (response.message) {
+              const modeData = JSON.parse(response.message);
+              if (modeData.all_modes && Array.isArray(modeData.all_modes)) {
+                setAllModes(modeData.all_modes);
+              }
+              if (modeData.current_mode) {
+                setCurrentMode(modeData.current_mode);
+              }
+              console.log('Updated modes:', {
+                current: modeData.current_mode,
+                all: modeData.all_modes
+              });
+            }
+          } catch (error) {
+            console.error('Error parsing API response:', error);
+          }
+        };
+
+        apiWs.onclose = (event) => {
+          console.log('API WebSocket connection closed:', event.code, event.reason);
+
+          if (apiIntervalRef.current) {
+            clearInterval(apiIntervalRef.current);
+            apiIntervalRef.current = null;
+          }
+
+          apiReconnectTimeoutRef.current = setTimeout(() => {
+            console.log('Attempting to reconnect API WebSocket...');
+            connectApiWebSocket();
+          }, 500);
+        };
+
+        apiWs.onerror = (error) => {
+          console.error('API WebSocket error:', error);
+        };
+
+      } catch (error) {
+        console.error('Failed to create API WebSocket connection:', error);
+
+        apiReconnectTimeoutRef.current = setTimeout(() => {
+          connectApiWebSocket();
+        }, 2000);
+      }
+    };
+
+    connectOm1WebSocket();
+    connectApiWebSocket();
 
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+      if (om1ReconnectTimeoutRef.current) {
+        clearTimeout(om1ReconnectTimeoutRef.current);
       }
-      if (wsRef.current) {
-        wsRef.current.close();
+      if (apiReconnectTimeoutRef.current) {
+        clearTimeout(apiReconnectTimeoutRef.current);
+      }
+      if (apiIntervalRef.current) {
+        clearInterval(apiIntervalRef.current);
+      }
+      if (om1WsRef.current) {
+        om1WsRef.current.close();
+      }
+      if (apiWsRef.current) {
+        apiWsRef.current.close();
       }
     };
   }, []);
+
+  // Separate effect to handle interval timing changes based on mode
+  useEffect(() => {
+    if (apiWsRef.current && apiWsRef.current.readyState === WebSocket.OPEN && apiIntervalRef.current) {
+      // Clear existing interval
+      clearInterval(apiIntervalRef.current);
+
+      // Set new interval based on current mode
+      apiIntervalRef.current = setInterval(() => {
+        if (apiWsRef.current && apiWsRef.current.readyState === WebSocket.OPEN) {
+          const requestId = crypto.randomUUID();
+          const message = JSON.stringify({ action: "get_mode", request_id: requestId });
+          apiWsRef.current.send(message);
+          console.log('Sent to API WebSocket:', message);
+        }
+      }, currentMode ? 30000 : 5000); // 5 seconds if no mode, 30 seconds if mode is set
+    }
+  }, [currentMode]);
 
   const renderCurrentAnimation = () => {
     switch (currentAnimation) {
@@ -156,11 +294,56 @@ export function App() {
     }
   };
 
+  const ModeSelector = () => (
+    <div className="fixed top-4 right-4 z-50">
+      <div className="relative">
+        <button
+          onClick={() => setShowModeSelector(!showModeSelector)}
+          className="bg-gray-800 bg-opacity-80 backdrop-blur-sm border border-gray-800 rounded-lg px-4 py-2 text-green-300 text-sm font-medium hover:bg-opacity-90 transition-all duration-200 shadow-lg"
+        >
+          <div className="flex items-center justify-center space-x-2">
+            <div className="w-2 h-2 rounded-full bg-green-300"/>
+            <span>{currentMode ? `${currentMode.charAt(0).toUpperCase() + currentMode.slice(1)} Mode` : 'Loading...'} ▼</span>
+          </div>
+        </button>
+
+        {showModeSelector && allModes.length > 0 && (
+          <div className="absolute top-full right-0 mt-2 bg-gray-800 bg-opacity-90 backdrop-blur-sm border border-gray-800 rounded-lg shadow-xl min-w-48 max-h-60 overflow-y-auto">
+            {allModes.map((mode) => (
+              <button
+                key={mode}
+                onClick={() => mode === currentMode ? '' : sendModeSwitch(mode)}
+                className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-600 hover:bg-opacity-50 transition-colors duration-150 first:rounded-t-lg last:rounded-b-lg"
+              >
+                <div className="flex items-center space-x-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    mode === currentMode ? 'bg-green-300' : 'bg-gray-500'
+                  }`}></div>
+                  <span className={`${mode === currentMode ? 'text-green-300' : 'text-gray-500'}`}>{mode.charAt(0).toUpperCase() + mode.slice(1)} Mode</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   if (!loaded) {
-    return <Loading />
+    return (
+      <>
+        <ModeSelector />
+        <Loading />
+      </>
+    )
   }
 
-  return renderCurrentAnimation();
+  return (
+    <>
+      {renderCurrentAnimation()}
+      <ModeSelector />
+    </>
+  );
 }
 
 export default App;
