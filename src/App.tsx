@@ -280,7 +280,7 @@ export function App() {
     connectOm1WebSocket();
     connectApiWebSocket();
 
-    // Start publish status checking
+    console.log('OM API Key ID:', omApiKeyId, 'OM API Key:', omApiKey);
     if (omApiKey) {
       checkPublishStatus();
       publishCheckIntervalRef.current = setInterval(() => {
