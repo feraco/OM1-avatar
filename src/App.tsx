@@ -121,6 +121,8 @@ export function App() {
   };
 
   const checkPublishStatus = async () => {
+    console.log(`Checking publish status from ${publishStatusApiUrl} with API key ${omApiKeyId} and ${omApiKey}`);
+
     if (!omApiKey) return;
 
     try {
@@ -135,7 +137,7 @@ export function App() {
       if (response.ok) {
         const data = await response.json();
         const isLive = data.status === 'live';
-        
+
         if (isLive !== isPublishingRef.current) {
           isPublishingRef.current = isLive;
           setIsPublishing(isLive);
@@ -144,7 +146,7 @@ export function App() {
         isPublishingRef.current = false;
         setIsPublishing(false);
       }
-    } catch (error) {
+    } catch {
       if (isPublishingRef.current) {
         isPublishingRef.current = false;
         setIsPublishing(false);
@@ -388,10 +390,10 @@ export function App() {
   // Show WebRTC video player when publishing is active (regardless of loaded state)
   if (isPublishing && omApiKey && omApiKeyId) {
     const playerUrl = `${webrtcPlayerBaseUrl}/portal/${omApiKeyId}/?api_key=${omApiKey}`;
-    
+
     return (
       <>
-        <iframe 
+        <iframe
           src={playerUrl}
           className="w-full h-screen border-0"
           allow="autoplay; camera; microphone"
