@@ -89,6 +89,7 @@ export function App() {
   const apiIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const publishCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPublishingRef = useRef<boolean>(false);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const parseMessage = (message: string): AnimationState => {
     if ( message === 'Confused' || message === 'Curious' || message === 'Excited' || message === 'Happy' || message === 'Sad' || message === 'Think') {
@@ -153,6 +154,13 @@ export function App() {
   };
 
   useEffect(() => {
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (!loaded) {
+        console.log('Loading timeout reached, showing app anyway');
+        setLoaded(true);
+      }
+    }, 5000);
+
     const connectOm1WebSocket = () => {
       try {
         const ws = new WebSocket(om1WsUrl);
@@ -173,13 +181,12 @@ export function App() {
 
         ws.onclose = (event) => {
           console.log('OM1 WebSocket connection closed:', event.code, event.reason);
-          setLoaded(false);
           setCurrentAnimation('Happy');
 
           om1ReconnectTimeoutRef.current = setTimeout(() => {
             console.log('Attempting to reconnect OM1 WebSocket...');
             connectOm1WebSocket();
-          }, 500);
+          }, 5000);
         };
 
         ws.onerror = (error) => {
@@ -191,7 +198,7 @@ export function App() {
 
         om1ReconnectTimeoutRef.current = setTimeout(() => {
           connectOm1WebSocket();
-        }, 2000);
+        }, 5000);
       }
     };
 
@@ -286,6 +293,9 @@ export function App() {
     }
 
     return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
       if (om1ReconnectTimeoutRef.current) {
         clearTimeout(om1ReconnectTimeoutRef.current);
       }
