@@ -359,6 +359,33 @@ export function App() {
     }
   };
 
+  const EmotionButtons = () => {
+    const emotions: AnimationState[] = ['Happy', 'Sad', 'Excited', 'Confused', 'Curious', 'Think'];
+
+    return (
+      <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
+        <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm border border-gray-700 rounded-lg px-4 py-3 shadow-xl">
+          <div className="flex items-center space-x-2">
+            <span className="text-gray-400 text-xs font-medium mr-2">Emotions:</span>
+            {emotions.map((emotion) => (
+              <button
+                key={emotion}
+                onClick={() => setCurrentAnimation(emotion)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                  currentAnimation === emotion
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {emotion}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const ModeSelector = () => (
     <div className="fixed top-4 right-4 z-50">
       <div className="relative">
@@ -423,6 +450,7 @@ export function App() {
     <>
       {renderCurrentAnimation()}
       <ModeSelector />
+      <EmotionButtons />
     </>
   );
 }
